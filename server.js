@@ -21,10 +21,8 @@ const syncProcessLimitRaw = Number(process.env.SYNC_PROCESS_LIMIT || 0);
 const syncProcessLimit = Number.isFinite(syncProcessLimitRaw) && syncProcessLimitRaw > 0
   ? Math.floor(syncProcessLimitRaw)
   : null;
-const spotifyMaxTracksPerRun = 200;
+const spotifyMaxTracksPerRun = 100;
 const defaultPreviewLimit = Math.max(10, Number(process.env.SYNC_PREVIEW_LIMIT || 150));
-const spotify429MaxRetries = Math.max(0, Math.floor(Number(process.env.SPOTIFY_429_MAX_RETRIES || 5)));
-const spotifyDebugDelayMs = Math.max(0, Math.floor(Number(process.env.SPOTIFY_DEBUG_DELAY_MS || 0)));
 
 app.use(express.json());
 app.use(cookieParser(process.env.SESSION_SECRET || 'dev-secret'));
@@ -252,63 +250,31 @@ function setCachedResponse(url, opts = {}, data) {
   console.log(`[cache] SET: ${url} (expires in 15 min)`);
 }
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function parseRetryAfterMs(value) {
-  if (!value) return null;
-  const asNumber = Number(value);
-  if (Number.isFinite(asNumber) && asNumber >= 0) {
-    return Math.ceil(asNumber * 1000);
-  }
-  const asDate = Date.parse(value);
-  if (!Number.isNaN(asDate)) {
-    return Math.max(0, asDate - Date.now());
-  }
-  return null;
-}
 
 async function httpRequest(url, opts = {}) {
   // Only cache GET requests from Spotify API
   const isCacheable = (opts.method || 'GET') === 'GET' && url.includes('spotify.com');
   const isSpotifyApi = url.includes('api.spotify.com');
-  
+
   if (isCacheable) {
     const cached = getCachedResponse(url, opts);
     if (cached) return cached;
   }
 
-  for (let attempt = 0; attempt <= spotify429MaxRetries; attempt += 1) {
-    if (isSpotifyApi && spotifyDebugDelayMs > 0) {
-      await sleep(spotifyDebugDelayMs);
-    }
+  const r = await fetch(url, opts);
 
-    const r = await fetch(url, opts);
-    if (r.status === 429 && isSpotifyApi && attempt < spotify429MaxRetries) {
-      const retryHeader = r.headers.get('retry-after');
-      const retryAfterMs = parseRetryAfterMs(retryHeader);
-      const backoffMs = retryAfterMs !== null ? retryAfterMs : Math.min(30000, 1000 * 2 ** attempt);
-      console.warn(`[spotify] 429 rate limit hit. retrying in ${backoffMs}ms (attempt ${attempt + 1}/${spotify429MaxRetries})`);
-      await sleep(backoffMs);
-      continue;
-    }
-
-    if (!r.ok) {
-      const body = await r.text();
-      throw new Error(`${r.status} ${r.statusText}: ${body}`);
-    }
-    const ct = r.headers.get('content-type') || '';
-    const data = ct.includes('application/json') ? await r.json() : await r.text();
-
-    // Cache successful GET requests from Spotify
-    if (isCacheable) {
-      setCachedResponse(url, opts, data);
-    }
-
-    return data;
+  if (!r.ok) {
+    const body = await r.text();
+    throw new Error(`${r.status} ${r.statusText}: ${body}`);
   }
-  throw new Error('HTTP request failed after Spotify rate-limit retries');
+  const ct = r.headers.get('content-type') || '';
+  const data = ct.includes('application/json') ? await r.json() : await r.text();
+
+  if (isCacheable) {
+    setCachedResponse(url, opts, data);
+  }
+
+  return data;
 }
 
 function youtubeRedirectUri() {
