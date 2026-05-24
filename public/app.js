@@ -1,6 +1,7 @@
 const statusEl = document.getElementById('status');
 const liveTransferTitleEl = document.getElementById('liveTransferTitle');
 const liveTransferMetaEl = document.getElementById('liveTransferMeta');
+const autoSyncStateEl = document.getElementById('autoSyncState');
 const destinationSelectEl = document.getElementById('destinationSelect');
 const orderSelectEl = document.getElementById('orderSelect');
 const playlistSettingsEl = document.getElementById('playlistSettings');
@@ -29,6 +30,7 @@ let statusPollHandle = null;
 let pollIntervalMs = 5000;
 let statusInitialized = false;
 let playlistsLoaded = false;
+const inflightActions = new Set();
 
 function getPlaylistMode() {
   const selected = document.querySelector('input[name="playlistMode"]:checked');
@@ -197,6 +199,31 @@ function setPollingInterval(ms) {
   statusPollHandle = setInterval(refreshStatus, pollIntervalMs);
 }
 
+async function withButtonLoading(button, action) {
+  if (button) {
+    button.classList.add('loading');
+    button.disabled = true;
+  }
+  try {
+    return await action();
+  } finally {
+    if (button) {
+      button.classList.remove('loading');
+      button.disabled = false;
+    }
+  }
+}
+
+async function runAction(key, button, action) {
+  if (inflightActions.has(key)) return;
+  inflightActions.add(key);
+  try {
+    await withButtonLoading(button, action);
+  } finally {
+    inflightActions.delete(key);
+  }
+}
+
 async function fetchJson(path, init = {}) {
   const response = await fetch(path, {
     headers: { 'Content-Type': 'application/json' },
@@ -216,6 +243,7 @@ async function refreshStatus() {
     statusEl.textContent = JSON.stringify(data, null, 2);
     updateConnectionUi(data);
     updateLiveFooter(data);
+    autoSyncStateEl.textContent = data.syncRunning ? 'Auto-sync: ON' : 'Auto-sync: OFF';
     setPollingInterval(data?.syncProgress?.inProgress ? 1000 : 5000);
 
     if (!statusInitialized && data.syncOptions) {
@@ -314,26 +342,52 @@ Array.from(document.querySelectorAll('input[name="playlistMode"]')).forEach((el)
   el.addEventListener('change', applySettingsVisibility);
 });
 
-document.getElementById('refreshPlaylists').addEventListener('click', loadPlaylists);
-document.getElementById('connectYoutube').addEventListener('click', () => openAuthPopup('/auth/youtube/start'));
-document.getElementById('connectSpotify').addEventListener('click', () => openAuthPopup('/auth/spotify/start'));
-document.getElementById('previewSync').addEventListener('click', runPreview);
-document.getElementById('runOnce').addEventListener('click', () => postAction('/sync/run', { options: getSyncOptions() }));
-document.getElementById('start').addEventListener('click', () => postAction('/sync/start', { options: getSyncOptions() }));
-document.getElementById('stop').addEventListener('click', () => postAction('/sync/stop', {}));
+document.getElementById('refreshPlaylists').addEventListener('click', (event) =>
+  runAction('refreshPlaylists', event.currentTarget, loadPlaylists)
+);
+document.getElementById('connectYoutube').addEventListener('click', (event) =>
+  runAction('connectYoutube', event.currentTarget, async () => {
+    openAuthPopup('/auth/youtube/start');
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  })
+);
+document.getElementById('connectSpotify').addEventListener('click', (event) =>
+  runAction('connectSpotify', event.currentTarget, async () => {
+    openAuthPopup('/auth/spotify/start');
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  })
+);
+document.getElementById('previewSync').addEventListener('click', (event) =>
+  runAction('previewSync', event.currentTarget, runPreview)
+);
+document.getElementById('runOnce').addEventListener('click', (event) =>
+  runAction('runOnce', event.currentTarget, () => postAction('/sync/run', { options: getSyncOptions() }))
+);
+document.getElementById('start').addEventListener('click', (event) =>
+  runAction('startSync', event.currentTarget, () => postAction('/sync/start', { options: getSyncOptions() }))
+);
+document.getElementById('stop').addEventListener('click', (event) =>
+  runAction('stopSync', event.currentTarget, () => postAction('/sync/stop', {}))
+);
 logoutYoutubeBtnEl.addEventListener('click', async () => {
-  await postAction('/auth/logout/youtube', {});
-  playlistsLoaded = false;
+  await runAction('logoutYoutube', logoutYoutubeBtnEl, async () => {
+    await postAction('/auth/logout/youtube', {});
+    playlistsLoaded = false;
+  });
 });
 logoutSpotifyBtnEl.addEventListener('click', async () => {
-  await postAction('/auth/logout/spotify', {});
-  playlistsLoaded = false;
-  playlistSelectEl.innerHTML = '';
+  await runAction('logoutSpotify', logoutSpotifyBtnEl, async () => {
+    await postAction('/auth/logout/spotify', {});
+    playlistsLoaded = false;
+    playlistSelectEl.innerHTML = '';
+  });
 });
 logoutAllBtnEl.addEventListener('click', async () => {
-  await postAction('/auth/logout/all', {});
-  playlistsLoaded = false;
-  playlistSelectEl.innerHTML = '';
+  await runAction('logoutAll', logoutAllBtnEl, async () => {
+    await postAction('/auth/logout/all', {});
+    playlistsLoaded = false;
+    playlistSelectEl.innerHTML = '';
+  });
 });
 toggleStatusFeedEl.addEventListener('click', () => {
   const expanded = toggleStatusFeedEl.getAttribute('aria-expanded') === 'true';
