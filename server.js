@@ -23,6 +23,9 @@ const syncProcessLimit = Number.isFinite(syncProcessLimitRaw) && syncProcessLimi
   : null;
 const spotifyMaxTracksPerRun = 100;
 const defaultPreviewLimit = Math.max(10, Number(process.env.SYNC_PREVIEW_LIMIT || 150));
+const apiRetryLimit = Math.max(1, Number(process.env.API_RETRY_LIMIT || 6));
+const apiRetryBaseDelayMs = Math.max(200, Number(process.env.API_RETRY_BASE_DELAY_MS || 1000));
+const apiRetryCapMs = Math.max(1000, Number(process.env.API_RETRY_CAP_MS || 30000));
 
 app.use(express.json());
 app.use(cookieParser(process.env.SESSION_SECRET || 'dev-secret'));
@@ -250,31 +253,69 @@ function setCachedResponse(url, opts = {}, data) {
   console.log(`[cache] SET: ${url} (expires in 15 min)`);
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function parseRetryAfterMs(value) {
+  if (!value) return null;
+  const numeric = Number(value);
+  if (Number.isFinite(numeric) && numeric >= 0) return numeric * 1000;
+  const asDate = Date.parse(value);
+  if (Number.isNaN(asDate)) return null;
+  const delta = asDate - Date.now();
+  return delta > 0 ? delta : 0;
+}
+
+function jitterMs(rangeMs = 300) {
+  return Math.floor(Math.random() * Math.max(1, rangeMs));
+}
 
 async function httpRequest(url, opts = {}) {
   // Only cache GET requests from Spotify API
   const isCacheable = (opts.method || 'GET') === 'GET' && url.includes('spotify.com');
-  const isSpotifyApi = url.includes('api.spotify.com');
 
   if (isCacheable) {
     const cached = getCachedResponse(url, opts);
     if (cached) return cached;
   }
 
-  const r = await fetch(url, opts);
+  let attempt = 0;
+  while (attempt <= apiRetryLimit) {
+    const r = await fetch(url, opts);
+    if (r.ok) {
+      const ct = r.headers.get('content-type') || '';
+      const data = ct.includes('application/json') ? await r.json() : await r.text();
 
-  if (!r.ok) {
+      if (isCacheable) {
+        setCachedResponse(url, opts, data);
+      }
+
+      return data;
+    }
+
     const body = await r.text();
-    throw new Error(`${r.status} ${r.statusText}: ${body}`);
-  }
-  const ct = r.headers.get('content-type') || '';
-  const data = ct.includes('application/json') ? await r.json() : await r.text();
+    const canRetry = r.status === 429 || (r.status >= 500 && r.status <= 599);
+    if (!canRetry || attempt >= apiRetryLimit) {
+      throw new Error(`${r.status} ${r.statusText}: ${body}`);
+    }
 
-  if (isCacheable) {
-    setCachedResponse(url, opts, data);
+    const retryAfterMs = parseRetryAfterMs(r.headers.get('retry-after'));
+    const expDelay = Math.min(apiRetryCapMs, apiRetryBaseDelayMs * (2 ** attempt));
+    const delayMs = Math.max(retryAfterMs || 0, expDelay) + jitterMs();
+    const endpoint = (() => {
+      try {
+        return new URL(url).pathname;
+      } catch (_) {
+        return url;
+      }
+    })();
+    console.warn(`[rate-limit] ${r.status} on ${endpoint}; retry ${attempt + 1}/${apiRetryLimit} in ${delayMs}ms`);
+    await sleep(delayMs);
+    attempt += 1;
   }
 
-  return data;
+  throw new Error('Request retry loop exited unexpectedly.');
 }
 
 function youtubeRedirectUri() {

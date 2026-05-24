@@ -41,9 +41,16 @@ function applySettingsVisibility() {
   const destination = destinationSelectEl.value;
   const playlistMode = getPlaylistMode();
   const isPlaylist = destination === 'playlist';
+  const canEditNewPlaylist = isPlaylist && playlistMode === 'new';
+
   playlistSettingsEl.hidden = !isPlaylist;
   existingPlaylistGroupEl.hidden = !isPlaylist || playlistMode !== 'existing';
-  newPlaylistGroupEl.hidden = !isPlaylist || playlistMode !== 'new';
+  newPlaylistGroupEl.hidden = !canEditNewPlaylist;
+
+  // Keep custom playlist fields explicitly editable when "Create new playlist" is selected.
+  newPlaylistNameEl.disabled = !canEditNewPlaylist;
+  newPlaylistNameEl.readOnly = !canEditNewPlaylist;
+  newPlaylistPublicEl.disabled = !canEditNewPlaylist;
 }
 
 function getSyncOptions() {
