@@ -21,6 +21,7 @@ const syncProcessLimitRaw = Number(process.env.SYNC_PROCESS_LIMIT || 0);
 const syncProcessLimit = Number.isFinite(syncProcessLimitRaw) && syncProcessLimitRaw > 0
   ? Math.floor(syncProcessLimitRaw)
   : null;
+const spotifyMaxTracksPerRun = 200;
 const defaultPreviewLimit = Math.max(10, Number(process.env.SYNC_PREVIEW_LIMIT || 150));
 
 app.use(express.json());
@@ -51,6 +52,8 @@ function buildDefaultSession() {
     youtube: null,
     spotify: null,
     importedVideoIds: new Set(),
+    failedVideoIds: new Set(),
+    skippedVideoIds: new Set(),
     trackEvents: {},
     lastRun: null,
     lastRunResult: null,
@@ -87,6 +90,8 @@ function sessionToPersistable(session) {
     youtube: session.youtube || null,
     spotify: session.spotify || null,
     importedVideoIds: Array.from(session.importedVideoIds || []),
+    failedVideoIds: Array.from(session.failedVideoIds || []),
+    skippedVideoIds: Array.from(session.skippedVideoIds || []),
     trackEvents: session.trackEvents || {},
     lastRun: session.lastRun || null,
     lastRunResult: session.lastRunResult || null,
@@ -104,6 +109,8 @@ function sessionFromPersisted(record) {
     youtube: record.youtube || null,
     spotify: record.spotify || null,
     importedVideoIds: new Set(Array.isArray(record.importedVideoIds) ? record.importedVideoIds : []),
+    failedVideoIds: new Set(Array.isArray(record.failedVideoIds) ? record.failedVideoIds : []),
+    skippedVideoIds: new Set(Array.isArray(record.skippedVideoIds) ? record.skippedVideoIds : []),
     trackEvents: record.trackEvents && typeof record.trackEvents === 'object' ? record.trackEvents : {},
     lastRun: record.lastRun || null,
     lastRunResult: record.lastRunResult || null,
@@ -740,9 +747,10 @@ async function getOrCreateTargetPlaylist(session, options) {
 
 async function buildSyncCandidates(session, options) {
   const likedVideos = await getYouTubeLikedVideos(session);
-  const pending = likedVideos.filter((v) => !session.importedVideoIds.has(v.videoId));
+  const pending = likedVideos.filter((v) => !session.importedVideoIds.has(v.videoId) && !session.skippedVideoIds.has(v.videoId));
   const orderedPending = orderByPreference(pending, options.order);
-  const candidates = syncProcessLimit ? orderedPending.slice(0, syncProcessLimit) : orderedPending;
+  const effectiveLimit = syncProcessLimit ? Math.min(syncProcessLimit, spotifyMaxTracksPerRun) : spotifyMaxTracksPerRun;
+  const candidates = orderedPending.slice(0, effectiveLimit);
   return { likedVideos, pending, candidates };
 }
 
@@ -847,6 +855,12 @@ async function runSync(session, requestedOptions) {
       const track = await searchSpotifyTrack(session, query);
       if (!track) {
         unmatched.push(v.title);
+        if (session.failedVideoIds.has(v.videoId)) {
+          session.failedVideoIds.delete(v.videoId);
+          session.skippedVideoIds.add(v.videoId);
+        } else if (!session.skippedVideoIds.has(v.videoId)) {
+          session.failedVideoIds.add(v.videoId);
+        }
         session.syncProgress.processed += 1;
         session.syncProgress.remaining = Math.max(0, candidates.length - session.syncProgress.processed);
         session.syncProgress.unmatchedCount = unmatched.length;
@@ -854,6 +868,8 @@ async function runSync(session, requestedOptions) {
         continue;
       }
 
+      session.failedVideoIds.delete(v.videoId);
+      session.skippedVideoIds.delete(v.videoId);
       const spotifyLabel = `${track.name} - ${track.artists.map((a) => a.name).join(', ')}`;
       session.syncProgress.currentSpotifyTrack = spotifyLabel;
 

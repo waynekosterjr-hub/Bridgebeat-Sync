@@ -121,6 +121,16 @@ npm start
 
 Open your browser to `http://localhost:3000` (or `https://localhost:3000` if HTTPS is enabled).
 
+### Desktop mode
+
+You can also run the app as a desktop application using Electron:
+
+```bash
+npm run desktop
+```
+
+This launches the local server in the background and opens the dashboard in a desktop window.
+
 ---
 
 ## How to use the app
