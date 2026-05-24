@@ -5,4 +5,5 @@ data/
 __electron_probe.js
 /.codegraph
 'codegraph.db
-'
+'codegraph.db-journal
+mcp.json
