@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bridgebeat Sync</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="bg-layer bg-layer-1"></div>
+    <div class="bg-layer bg-layer-2"></div>
+    <div class="bg-grid"></div>
+
+    <main class="container">
+      <header class="hero">
+        <div class="brand-wrap">
+          <div id="approvedLogoSlot" class="brand-mark">
+            <img src="/assets/brand-logo-final.png" alt="Bridgebeat Sync logo" class="hero-logo-image" />
+          </div>
+          <div>
+            <h1>Bridgebeat Sync</h1>
+            <p class="subtitle">Preview first, then sync your YouTube likes into Spotify the way you want.</p>
+          </div>
+        </div>
+        <a id="githubProfileLink" class="github-link" href="https://github.com/waynekosterjr-hub" target="_blank" rel="noreferrer">
+          <svg viewBox="0 0 24 24" class="github-icon" aria-hidden="true">
+            <path fill="currentColor" d="M12 .5a12 12 0 0 0-3.79 23.39c.6.11.82-.25.82-.57v-2.2c-3.34.73-4.04-1.43-4.04-1.43-.55-1.36-1.33-1.72-1.33-1.72-1.09-.74.08-.72.08-.72 1.2.09 1.83 1.2 1.83 1.2 1.08 1.8 2.83 1.28 3.52.97.11-.76.42-1.28.76-1.57-2.67-.3-5.47-1.3-5.47-5.8 0-1.28.47-2.34 1.24-3.16-.13-.3-.54-1.5.12-3.13 0 0 1.01-.31 3.3 1.2a11.5 11.5 0 0 1 6 0c2.28-1.5 3.29-1.2 3.29-1.2.67 1.63.26 2.83.13 3.13.77.82 1.24 1.88 1.24 3.16 0 4.5-2.8 5.5-5.48 5.8.43.37.82 1.1.82 2.22v3.3c0 .32.21.69.83.57A12 12 0 0 0 12 .5Z"/>
+          </svg>
+          <span>GitHub Profile</span>
+        </a>
+      </header>
+
+      <section class="card split">
+        <div>
+          <h2>Connect Accounts</h2>
+          <p class="subtitle">Popup auth keeps your dashboard in place.</p>
+          <div class="row">
+            <button id="connectYoutube" class="btn btn-youtube">Connect YouTube</button>
+            <button id="connectSpotify" class="btn btn-spotify">Connect Spotify</button>
+          </div>
+          <div class="status-pill-row">
+            <span id="youtubeStatusBadge" class="mini-pill">YouTube: Not connected</span>
+            <span id="spotifyStatusBadge" class="mini-pill">Spotify: Not connected</span>
+          </div>
+        </div>
+        <div>
+          <h2>Sync Controls</h2>
+          <p class="subtitle">Preview, run once, or run continuously with saved settings.</p>
+          <div class="row">
+            <button id="previewSync" class="btn btn-ghost">Preview transfers</button>
+            <button id="runOnce" class="btn">Run once now</button>
+            <button id="start" class="btn">Start auto-sync</button>
+            <button id="stop" class="btn danger">Stop auto-sync</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Preview Queue</h2>
+        <p id="previewMeta" class="subtitle">Run preview to see what will transfer.</p>
+        <ul id="previewList" class="preview-list"></ul>
+      </section>
+
+      <section class="card">
+        <div class="status-head">
+          <h2>Status Feed</h2>
+          <button id="toggleStatusFeed" class="status-toggle" aria-expanded="false" aria-controls="statusFeedWrap">
+            <span id="statusArrow" class="status-arrow">&gt;</span>
+            <span>Show</span>
+          </button>
+        </div>
+        <div id="statusFeedWrap" class="status-feed-wrap collapsed">
+          <pre id="status" class="status-feed">Loading...</pre>
+        </div>
+      </section>
+    </main>
+
+    <footer class="live-footer">
+      <div class="footer-left">
+        <div id="liveTransferTitle" class="live-title">Live transfer: idle</div>
+        <div id="liveTransferMeta" class="live-meta">Waiting for sync run.</div>
+      </div>
+      <div class="footer-actions">
+        <button id="toggleSettingsPanel" class="settings-fab" aria-expanded="false" aria-controls="settingsPanel" title="Open settings">
+          <span class="settings-fab-icon">⚙</span>
+        </button>
+      </div>
+    </footer>
+
+    <aside id="settingsPanel" class="settings-panel" aria-hidden="true">
+      <div class="settings-panel-head">
+        <h2>Settings</h2>
+        <button id="closeSettingsPanel" class="settings-close" aria-label="Close settings">×</button>
+      </div>
+      <p class="subtitle">Existing playlist order is preserved by default. Enable date-based sorting only when you want newest cross-platform activity at the top.</p>
+
+      <div class="row account-row">
+        <button id="logoutYoutube" class="btn btn-ghost">Logout YouTube</button>
+        <button id="logoutSpotify" class="btn btn-ghost">Logout Spotify</button>
+        <button id="logoutAll" class="btn danger">Logout All Accounts</button>
+      </div>
+
+      <div class="settings-grid">
+        <label class="field">
+          <span>Sync destination</span>
+          <select id="destinationSelect">
+            <option value="library">Spotify Liked Songs</option>
+            <option value="playlist">Spotify Playlist</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Song order</span>
+          <select id="orderSelect">
+            <option value="newest">Newest liked first</option>
+            <option value="oldest">Oldest liked first</option>
+          </select>
+        </label>
+      </div>
+
+      <div id="playlistSettings" class="playlist-settings" hidden>
+        <label class="field checkbox-field">
+          <input id="playlistDateSort" type="checkbox" />
+          <span>Sort playlist by activity date (newest first using YouTube like dates + Spotify saved-track dates)</span>
+        </label>
+
+        <div class="row">
+          <label class="inline-radio">
+            <input type="radio" name="playlistMode" value="existing" checked />
+            <span>Use existing playlist</span>
+          </label>
+          <label class="inline-radio">
+            <input type="radio" name="playlistMode" value="new" />
+            <span>Create new playlist</span>
+          </label>
+        </div>
+
+        <div id="existingPlaylistGroup" class="settings-grid">
+          <label class="field">
+            <span>Existing playlist</span>
+            <select id="playlistSelect"></select>
+          </label>
+          <div class="field action-field">
+            <span>&nbsp;</span>
+            <button id="refreshPlaylists" class="btn btn-ghost">Refresh playlists</button>
+          </div>
+        </div>
+
+        <div id="newPlaylistGroup" class="settings-grid" hidden>
+          <label class="field">
+            <span>New playlist name</span>
+            <input id="newPlaylistName" type="text" maxlength="120" placeholder="My YouTube Likes Sync" />
+          </label>
+          <label class="field checkbox-field">
+            <input id="newPlaylistPublic" type="checkbox" />
+            <span>Make playlist public</span>
+          </label>
+        </div>
+      </div>
+    </aside>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
