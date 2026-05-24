@@ -2,6 +2,7 @@ node_modules
 .env
 certs
 data/
+__electron_probe.js
 /.codegraph
 'codegraph.db
 '
