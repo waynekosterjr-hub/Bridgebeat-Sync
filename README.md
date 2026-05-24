@@ -1,46 +1,85 @@
-# YouTube Likes -> Spotify Likes Sync
+# Bridgebeat Sync
 
-This web app syncs your recently liked YouTube videos into your Spotify library on a short polling interval (near real-time).
+Sync your YouTube liked videos into your Spotify library in near real-time.
+
+![Bridgebeat Sync dashboard](public/assets/screenshot-dashboard.png)
+
+---
 
 ## What it does
-- Connects to YouTube and Spotify with OAuth.
-- Opens OAuth in popup windows so your dashboard stays on `localhost:3000`.
-- Lets you preview matched songs before syncing.
-- Lets you choose sync destination:
-  - Spotify Liked Songs
-  - Existing Spotify playlist
-  - New Spotify playlist (name selectable)
-- Lets you control transfer order (newest first or oldest first).
-- Optional playlist date sort mode can reorder a playlist by latest activity date (YouTube like timestamp + Spotify saved-track timestamp), newest first.
-- Reads your YouTube liked videos playlist.
-- Searches Spotify by cleaned YouTube title.
-- Saves matched tracks to your Spotify library.
-- Runs one-shot sync or continuous auto-sync.
-- Paginates YouTube likes (not just first page) and processes a configurable batch size per run.
 
-## Important limitations
-- True instant real-time for YouTube likes is not available through a dedicated likes webhook; this app uses periodic polling.
-- Matching is heuristic (video title to track search), so some songs may be unmatched or mismatched.
-- Session/token state is persisted locally in `data/sessions.json` so reconnect is usually not needed after restart.
+- Connects YouTube and Spotify via OAuth (popup windows — dashboard stays open)
+- Previews matched songs before committing any transfer
+- Lets you choose where tracks go: Spotify Liked Songs, an existing playlist, or a brand-new playlist
+- Controls transfer order: newest-first or oldest-first
+- Optional playlist date-sort mode reorders by latest activity (YouTube like timestamp + Spotify saved-track timestamp)
+- Paginates through your full YouTube likes history
+- Runs as a one-shot sync or continuous auto-sync on a configurable interval
 
-## Setup
-1. Create Google Cloud OAuth credentials for a Web app and enable YouTube Data API v3.
-2. Create Spotify app credentials.
-3. Copy `.env.example` to `.env` and fill values.
-4. Choose protocol:
-   - HTTP mode: keep `HTTPS_ENABLED=false` and `APP_BASE_URL=http://localhost:3000`
-   - HTTPS mode: set:
-     - `HTTPS_ENABLED=true`
-     - `APP_BASE_URL=https://localhost:3000`
-     - Use either:
-       - `HTTPS_PFX_PATH=./certs/localhost.pfx` and `HTTPS_PFX_PASSPHRASE=...`
-       - or `HTTPS_KEY_PATH=...` + `HTTPS_CERT_PATH=...`
-5. Add these redirect URIs in both Google and Spotify (must match your protocol exactly):
-   - `http://localhost:3000/auth/youtube/callback` or `https://localhost:3000/auth/youtube/callback`
-   - `http://localhost:3000/auth/spotify/callback` or `https://localhost:3000/auth/spotify/callback`
-6. If using HTTPS, create local certs.
+---
 
-### Windows PowerShell (.pfx)
+## Screenshots
+
+### Dashboard — connect, preview, and sync controls
+
+![Dashboard](public/assets/screenshot-dashboard.png)
+
+---
+
+## Quickstart
+
+### 1. Clone and install
+
+```bash
+git clone https://github.com/waynekosterjr-hub/Bridgebeat-Sync.git
+cd Bridgebeat-Sync
+npm install
+```
+
+### 2. Create API credentials
+
+**Google / YouTube**
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/) → APIs & Services → Credentials
+2. Create an **OAuth 2.0 Client ID** (Application type: **Web application**)
+3. Enable the **YouTube Data API v3** for your project
+4. Add an authorized redirect URI:
+   - HTTP: `http://localhost:3000/auth/youtube/callback`
+   - HTTPS: `https://localhost:3000/auth/youtube/callback`
+5. Copy your **Client ID** and **Client Secret**
+
+**Spotify**
+
+1. Go to [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
+2. Create an app
+3. Add a redirect URI:
+   - HTTP: `http://localhost:3000/auth/spotify/callback`
+   - HTTPS: `https://localhost:3000/auth/spotify/callback`
+4. Copy your **Client ID** and **Client Secret**
+
+### 3. Configure environment
+
+```bash
+cp .env.example .env
+```
+
+Open `.env` and fill in your credentials:
+
+```env
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+SPOTIFY_CLIENT_ID=your_spotify_client_id
+SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
+SESSION_SECRET=any_random_string
+APP_BASE_URL=http://localhost:3000
+HTTPS_ENABLED=false
+```
+
+### 4. (Optional) Enable HTTPS
+
+If you want HTTPS locally, generate a self-signed cert and update `.env`:
+
+**Windows PowerShell**
 
 ```powershell
 $pwd = ConvertTo-SecureString 'changeit123!' -AsPlainText -Force
@@ -49,7 +88,7 @@ New-Item -ItemType Directory -Force certs | Out-Null
 Export-PfxCertificate -Cert $cert -FilePath .\certs\localhost.pfx -Password $pwd
 ```
 
-Set in `.env`:
+Then set in `.env`:
 
 ```env
 HTTPS_ENABLED=true
@@ -58,14 +97,14 @@ HTTPS_PFX_PATH=./certs/localhost.pfx
 HTTPS_PFX_PASSPHRASE=changeit123!
 ```
 
-### mkcert (if installed)
+**mkcert (any platform)**
 
 ```bash
 mkcert -install
 mkcert -key-file certs/localhost-key.pem -cert-file certs/localhost.pem localhost 127.0.0.1 ::1
 ```
 
-Set in `.env`:
+Then set in `.env`:
 
 ```env
 HTTPS_ENABLED=true
@@ -74,18 +113,70 @@ HTTPS_KEY_PATH=./certs/localhost-key.pem
 HTTPS_CERT_PATH=./certs/localhost.pem
 ```
 
-7. Install and run:
+### 5. Start the server
 
 ```bash
-npm install
 npm start
 ```
 
-Then open either `http://localhost:3000` or `https://localhost:3000` based on your `.env`.
+Open your browser to `http://localhost:3000` (or `https://localhost:3000` if HTTPS is enabled).
 
-## Spotify Re-Auth Note
-If you previously connected Spotify before playlist features were added, reconnect Spotify so the app receives playlist scopes (`playlist-read-private`, `playlist-modify-public`, `playlist-modify-private`).
+---
 
-## Sync volume tuning
-- `YOUTUBE_MAX_ITEMS_PER_RUN` (default `1000`): how many liked videos to fetch each run. Set `0` for unlimited.
-- `SYNC_PROCESS_LIMIT` (default `1000`): how many new candidates to attempt matching/saving per run. Set `0` for unlimited.
+## How to use the app
+
+### Step 1 — Connect YouTube
+
+Click **Connect YouTube**. A popup opens asking you to sign in with Google and grant read access to your YouTube liked videos. Once authorized, the popup closes and the dashboard shows **YouTube: Connected**.
+
+### Step 2 — Connect Spotify
+
+Click **Connect Spotify**. A popup opens for Spotify login and permissions (library read/write, playlist management). Once done, the dashboard shows **Spotify: Connected**.
+
+### Step 3 — Preview what will transfer
+
+Click **Preview transfers**. The app fetches your recent YouTube likes, searches Spotify for each one, and populates the **Preview Queue** with matched tracks. Review the list — this doesn't save anything yet.
+
+### Step 4 — Configure sync options (optional)
+
+Click **Show** next to the sync options panel to expand settings:
+
+| Option | What it does |
+|---|---|
+| **Destination** | Save to Spotify Liked Songs or a playlist |
+| **Playlist** | Pick an existing playlist or create a new one (name it anything) |
+| **Order** | Transfer newest likes first or oldest first |
+| **Playlist date sort** | Reorder playlist by most-recently liked/saved, newest first |
+
+### Step 5 — Run a sync
+
+- **Run once sync** — transfers matched tracks immediately, then stops
+- **Auto-sync every…** — runs continuously on the configured interval (default: 2 minutes), picking up new likes as you add them on YouTube
+
+### Step 6 — Monitor progress
+
+The **Status Feed** at the bottom logs each run: tracks found, matched, saved, and any errors. The **Live Transfer** bar at the bottom of the screen shows the current operation in real time.
+
+### Step 7 — Stop auto-sync
+
+Click **Stop auto-sync** at any time. Your Spotify library keeps everything already transferred.
+
+---
+
+## Tuning
+
+| Environment variable | Default | Description |
+|---|---|---|
+| `SYNC_INTERVAL_SECONDS` | `120` | Seconds between auto-sync runs (minimum 30) |
+| `YOUTUBE_MAX_ITEMS_PER_RUN` | `0` (unlimited) | Max liked videos to fetch per run |
+| `SYNC_PROCESS_LIMIT` | `0` (unlimited) | Max new candidates to match/save per run |
+| `SYNC_PREVIEW_LIMIT` | `150` | Max tracks shown in preview queue |
+
+---
+
+## Notes
+
+- **Matching is heuristic** — video titles are cleaned and searched on Spotify. Some tracks may be unmatched or mismatched.
+- **Session tokens** are stored locally in `data/sessions.json` (gitignored). You usually don't need to reconnect after a server restart.
+- **Spotify re-auth** — if you connected Spotify before playlist features were added, reconnect to grant playlist scopes.
+- **YouTube rate limits** — `YOUTUBE_MAX_ITEMS_PER_RUN` and `SYNC_PROCESS_LIMIT` help stay within API quotas.
