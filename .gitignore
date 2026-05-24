@@ -2,3 +2,6 @@ node_modules
 .env
 certs
 data/
+/.codegraph
+'codegraph.db
+'

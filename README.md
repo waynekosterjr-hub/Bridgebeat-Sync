@@ -181,6 +181,8 @@ Click **Stop auto-sync** at any time. Your Spotify library keeps everything alre
 | `YOUTUBE_MAX_ITEMS_PER_RUN` | `0` (unlimited) | Max liked videos to fetch per run |
 | `SYNC_PROCESS_LIMIT` | `0` (unlimited) | Max new candidates to match/save per run |
 | `SYNC_PREVIEW_LIMIT` | `150` | Max tracks shown in preview queue |
+| `SPOTIFY_429_MAX_RETRIES` | `5` | Retry count for Spotify 429 responses |
+| `SPOTIFY_DEBUG_DELAY_MS` | `0` | Extra delay before each Spotify API call (debug throttle) |
 
 ---
 
