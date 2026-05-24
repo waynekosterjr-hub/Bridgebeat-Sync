@@ -6,8 +6,8 @@
     "scripts": {
         "start": "node server.js",
         "dev": "node --watch server.js",
-        "desktop": "electron .",
-        "desktop:dev": "electron ."
+        "desktop": "set ELECTRON_RUN_AS_NODE=&& electron .",
+        "desktop:dev": "set ELECTRON_RUN_AS_NODE=&& electron ."
     },
     "keywords": [],
     "author": "",
@@ -20,7 +20,7 @@
         "playwright": "^1.60.0"
     },
     "devDependencies": {
-        "electron": "^26.0.0",
+        "electron": "^26.6.10",
         "sharp": "^0.34.5"
     }
 }

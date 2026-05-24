@@ -1,0 +1,11 @@
+{
+    "recommendations": [
+        "openai.chatgpt",
+        "ms-azuretools.vscode-docker",
+        "docker.docker",
+        "anthropic.claude-code",
+        "ms-vscode.vscode-chat-customizations-evaluations",
+        "ms-azuretools.vscode-containers",
+        "josharsh.logbroom"
+    ]
+}
