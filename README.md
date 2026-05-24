@@ -2,7 +2,7 @@
 
 Sync your YouTube liked videos into your Spotify library in near real-time.
 
-![Bridgebeat Sync](public/assets/brand-logo-final.png)
+![Bridgebeat Sync](public/assets/logo-readme.png)
 
 ---
 
