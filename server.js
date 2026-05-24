@@ -258,7 +258,11 @@ function sleep(ms) {
 function parseRetryAfterMs(value) {
   if (!value) return null;
   const numeric = Number(value);
-  if (Number.isFinite(numeric) && numeric >= 0) return numeric * 1000;
+  if (Number.isFinite(numeric) && numeric >= 0) {
+    // Retry-After is typically seconds, but some providers/middlewares return ms.
+    // Interpret very large numeric values as already-ms to avoid accidental multi-hour delays.
+    return numeric > 1000 ? numeric : numeric * 1000;
+  }
   const asDate = Date.parse(value);
   if (Number.isNaN(asDate)) return null;
   const delta = asDate - Date.now();
@@ -300,7 +304,8 @@ async function httpRequest(url, opts = {}) {
 
     const retryAfterMs = parseRetryAfterMs(r.headers.get('retry-after'));
     const expDelay = Math.min(apiRetryCapMs, apiRetryBaseDelayMs * (2 ** attempt));
-    const delayMs = Math.max(retryAfterMs || 0, expDelay) + jitterMs();
+    const requestedDelay = Math.max(retryAfterMs || 0, expDelay);
+    const delayMs = Math.min(apiRetryCapMs, requestedDelay) + jitterMs();
     const endpoint = (() => {
       try {
         return new URL(url).pathname;
