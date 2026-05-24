@@ -13,10 +13,8 @@ const httpsEnabled = String(process.env.HTTPS_ENABLED || 'false').toLowerCase() 
 const baseProtocol = httpsEnabled ? 'https' : 'http';
 const baseUrl = process.env.APP_BASE_URL || `${baseProtocol}://localhost:${port}`;
 const syncIntervalMs = Math.max(30, Number(process.env.SYNC_INTERVAL_SECONDS || 120)) * 1000;
-const youtubeMaxItemsPerRunRaw = Number(process.env.YOUTUBE_MAX_ITEMS_PER_RUN || 0);
-const youtubeMaxItemsPerRun = Number.isFinite(youtubeMaxItemsPerRunRaw) && youtubeMaxItemsPerRunRaw > 0
-  ? Math.floor(youtubeMaxItemsPerRunRaw)
-  : null;
+// Always pull the full YouTube liked list; Spotify sync remains capped separately.
+const youtubeMaxItemsPerRun = null;
 const syncProcessLimitRaw = Number(process.env.SYNC_PROCESS_LIMIT || 0);
 const syncProcessLimit = Number.isFinite(syncProcessLimitRaw) && syncProcessLimitRaw > 0
   ? Math.floor(syncProcessLimitRaw)

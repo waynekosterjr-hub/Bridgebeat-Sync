@@ -30,6 +30,7 @@ let statusPollHandle = null;
 let pollIntervalMs = 5000;
 let statusInitialized = false;
 let playlistsLoaded = false;
+let playlistsLoading = false;
 const inflightActions = new Set();
 
 function getPlaylistMode() {
@@ -262,8 +263,9 @@ async function refreshStatus() {
       renderPreview(data.preview);
     }
 
-    if (data.spotifyConnected && !playlistsLoaded) {
-      await loadPlaylists();
+    const destinationIsPlaylist = destinationSelectEl.value === 'playlist';
+    if (data.spotifyConnected && destinationIsPlaylist && !playlistsLoaded && !playlistsLoading) {
+      void loadPlaylists({ silent: true });
     }
   } catch (error) {
     statusEl.textContent = error.message;
@@ -294,7 +296,10 @@ async function postAction(path, payload) {
   }
 }
 
-async function loadPlaylists() {
+async function loadPlaylists(options = {}) {
+  if (playlistsLoading) return;
+  playlistsLoading = true;
+  const silent = Boolean(options.silent);
   try {
     const currentSelected = playlistSelectEl.value;
     const data = await fetchJson('/spotify/playlists');
@@ -315,7 +320,9 @@ async function loadPlaylists() {
   } catch (error) {
     playlistsLoaded = false;
     playlistSelectEl.innerHTML = '';
-    alert(error.message);
+    if (!silent) alert(error.message);
+  } finally {
+    playlistsLoading = false;
   }
 }
 
@@ -344,7 +351,12 @@ window.addEventListener('message', async (event) => {
   await refreshStatus();
 });
 
-destinationSelectEl.addEventListener('change', applySettingsVisibility);
+destinationSelectEl.addEventListener('change', () => {
+  applySettingsVisibility();
+  if (destinationSelectEl.value === 'playlist' && !playlistsLoaded && !playlistsLoading) {
+    void loadPlaylists({ silent: true });
+  }
+});
 Array.from(document.querySelectorAll('input[name="playlistMode"]')).forEach((el) => {
   el.addEventListener('change', applySettingsVisibility);
 });
