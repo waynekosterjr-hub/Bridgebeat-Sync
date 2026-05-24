@@ -13,16 +13,24 @@ const httpsEnabled = String(process.env.HTTPS_ENABLED || 'false').toLowerCase() 
 const baseProtocol = httpsEnabled ? 'https' : 'http';
 const baseUrl = process.env.APP_BASE_URL || `${baseProtocol}://localhost:${port}`;
 const syncIntervalMs = Math.max(30, Number(process.env.SYNC_INTERVAL_SECONDS || 120)) * 1000;
-const youtubeMaxItemsPerRun = 50;
+const youtubeMaxItemsPerRunRaw = Number(process.env.YOUTUBE_MAX_ITEMS_PER_RUN || 50);
+const youtubeMaxItemsPerRun = Number.isFinite(youtubeMaxItemsPerRunRaw) && youtubeMaxItemsPerRunRaw > 0
+  ? Math.min(50, Math.floor(youtubeMaxItemsPerRunRaw))
+  : 50;
 const syncProcessLimitRaw = Number(process.env.SYNC_PROCESS_LIMIT || 0);
 const syncProcessLimit = Number.isFinite(syncProcessLimitRaw) && syncProcessLimitRaw > 0
   ? Math.floor(syncProcessLimitRaw)
   : null;
-const spotifyMaxTracksPerRun = 50;
+const spotifyMaxTracksPerRunRaw = Number(process.env.SPOTIFY_MAX_TRACKS_PER_RUN || 50);
+const spotifyMaxTracksPerRun = Number.isFinite(spotifyMaxTracksPerRunRaw) && spotifyMaxTracksPerRunRaw > 0
+  ? Math.min(50, Math.floor(spotifyMaxTracksPerRunRaw))
+  : 50;
 const defaultPreviewLimit = Math.max(10, Number(process.env.SYNC_PREVIEW_LIMIT || 150));
 const apiRetryLimit = Math.max(1, Number(process.env.API_RETRY_LIMIT || 6));
 const apiRetryBaseDelayMs = Math.max(200, Number(process.env.API_RETRY_BASE_DELAY_MS || 1000));
 const apiRetryCapMs = Math.max(1000, Number(process.env.API_RETRY_CAP_MS || 30000));
+const spotifyApiMinIntervalMs = Math.max(0, Number(process.env.SPOTIFY_API_MIN_INTERVAL_MS || 350));
+const spotifySearchExtraDelayMs = Math.max(0, Number(process.env.SPOTIFY_SEARCH_EXTRA_DELAY_MS || 250));
 
 app.use(express.json());
 app.use(cookieParser(process.env.SESSION_SECRET || 'dev-secret'));
@@ -224,6 +232,8 @@ function chunk(items, size) {
 // Cache for API responses (TTL: 15 minutes)
 const apiCache = new Map();
 const CACHE_TTL_MS = 15 * 60 * 1000;
+let spotifyApiLane = Promise.resolve();
+let spotifyLastRequestAt = 0;
 
 function getCacheKey(url, opts = {}) {
   const method = opts.method || 'GET';
@@ -272,6 +282,34 @@ function jitterMs(rangeMs = 300) {
   return Math.floor(Math.random() * Math.max(1, rangeMs));
 }
 
+async function withSpotifyRateLimit(url, fn) {
+  const parsed = (() => {
+    try {
+      return new URL(url);
+    } catch (_) {
+      return null;
+    }
+  })();
+  const isSpotifyApi = parsed?.hostname === 'api.spotify.com';
+  if (!isSpotifyApi) return fn();
+
+  const pathname = parsed?.pathname || '';
+  const extraDelay = pathname === '/v1/search' ? spotifySearchExtraDelayMs : 0;
+
+  const task = spotifyApiLane.then(async () => {
+    const now = Date.now();
+    const earliestNext = spotifyLastRequestAt + spotifyApiMinIntervalMs + extraDelay;
+    if (earliestNext > now) {
+      await sleep(earliestNext - now);
+    }
+    spotifyLastRequestAt = Date.now();
+    return fn();
+  });
+
+  spotifyApiLane = task.catch(() => {});
+  return task;
+}
+
 async function httpRequest(url, opts = {}) {
   // Only cache GET requests from Spotify API
   const isCacheable = (opts.method || 'GET') === 'GET' && url.includes('spotify.com');
@@ -283,7 +321,7 @@ async function httpRequest(url, opts = {}) {
 
   let attempt = 0;
   while (attempt <= apiRetryLimit) {
-    const r = await fetch(url, opts);
+    const r = await withSpotifyRateLimit(url, () => fetch(url, opts));
     if (r.ok) {
       const ct = r.headers.get('content-type') || '';
       const data = ct.includes('application/json') ? await r.json() : await r.text();
